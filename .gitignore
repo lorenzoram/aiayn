@@ -1,0 +1,8 @@
+__pycache__
+new/runs
+new/weights
+
+new/tokenizer*.json
+
+.idea
+.vscode
