@@ -43,7 +43,7 @@ class PositionalEncoding(nn.Module):
         x = x + (self.pe[:, :x.shape[1], :]).requires_grad_(False)
         return self.dropout(x)
 
-# Rember we use this straight from torch, # TODO: check
+'''# Rember we use this straight from torch, # TODO: check
 class LayerNormalization(nn.Module):
 
     def __init__(self, features: int, eps:float=10**-6) -> None:
@@ -59,7 +59,7 @@ class LayerNormalization(nn.Module):
         # Keep the dimension for broadcasting
         std = x.std(dim = -1, keepdim = True) # (batch, seq_len, 1)
         # eps is to prevent dividing by zero or when std is very small
-        return self.alpha * (x - mean) / (std + self.eps) + self.bias
+        return self.alpha * (x - mean) / (std + self.eps) + self.bias'''
     
 class FeedForwardBlock(nn.Module):
     # Paper: linear layer with 2 matrices and relu in between
@@ -134,7 +134,8 @@ class ResidualConnection(nn.Module):
     def __init__(self, features: int, dropout: float):
         super(ResidualConnection, self).__init__()
         self.dropout = nn.Dropout(dropout)
-        self.norm = LayerNormalization(features=features)
+        #self.norm = LayerNormalization(features=features)
+        self.norm = nn.LayerNorm(features)
         
     def forward(self, x, sublayer): # sublayer is the previous layer
         # We first apply the sublayer, 
@@ -159,7 +160,8 @@ class Encoder(nn.Module):
     def __init__(self, features: int, layers: nn.ModuleList):
         super(Encoder, self).__init__()
         self.layers = layers
-        self.norm = LayerNormalization(features=features)
+        #self.norm = LayerNormalization(features=features)
+        self.norm = nn.LayerNorm(features)
         
     def forward(self, x, src_mask):
         for layer in self.layers:
@@ -186,7 +188,9 @@ class Decoder(nn.Module):
     def __init__(self, features: int, layers: nn.ModuleList):
         super().__init__()
         self.layers = layers
-        self.norm = LayerNormalization(features=features)
+        #self.norm = LayerNormalization(features=features)
+        self.norm = nn.LayerNorm(features)
+
         
     def forward(self, x, enc_output, src_mask, trg_mask):
         for layer in self.layers:
