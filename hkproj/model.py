@@ -69,15 +69,15 @@ class FeedForwardBlock(nn.Module):
         self.seq = nn.Sequential(
             nn.Linear(d_model, dff),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(dff, d_model),
-            nn.Dropout(dropout)
         )
 
     def forward(self, x):
         # x.shape = (batch_size, seq_len, d_model) --> (batch_size, seq_len, dff) --> (batch_size, seq_len, d_model)
         return self.seq(x)
     
-class MultiHeadAttention(nn.Module):
+class MultiHeadAttentionBlock(nn.Module):
 
     def __init__(self, d_model: int, h: int, dropout: float) -> None:
         super().__init__()
@@ -120,7 +120,7 @@ class MultiHeadAttention(nn.Module):
         value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
 
         # Calculate attention
-        x, self.attention_scores = MultiHeadAttention.attention(query, key, value, mask, self.dropout)
+        x, self.attention_scores = MultiHeadAttentionBlock.attention(query, key, value, mask, self.dropout)
         
         # Combine all the heads together
         # (batch, h, seq_len, d_k) --> (batch, seq_len, h, d_k) --> (batch, seq_len, d_model)
@@ -129,20 +129,6 @@ class MultiHeadAttention(nn.Module):
         # Multiply by Wo
         # (batch, seq_len, d_model) --> (batch, seq_len, d_model)  
         return self.w_o(x)
-
-
-    @staticmethod
-    def attention(query, key, value, mask, dropout: nn.Dropout):
-        d_k = query.shape[-1]
-
-        attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
-        if mask is not None:
-            attention_scores.masked_fill(mask == 0, -1e9)
-        attention_scores = attention_scores.softmax(dim=-1)
-        if dropout is not None:
-            attention_scores = dropout(attention_scores)
-
-        return attention_scores @ value, attention_scores
     
 class ResidualConnection(nn.Module):
     def __init__(self, features: int, dropout: float):
@@ -155,7 +141,7 @@ class ResidualConnection(nn.Module):
         return x + self.dropout(sublayer(self.norm(x)))
 
 class EncoderBlock(nn.Module):
-    def __init__(self, features: int, self_attention: MultiHeadAttention, feed_forward: FeedForwardBlock, dropout: float):
+    def __init__(self, features: int, self_attention: MultiHeadAttentionBlock, feed_forward: FeedForwardBlock, dropout: float):
         super(EncoderBlock, self).__init__()
         self.self_attention = self_attention
         self.feed_forward = feed_forward
@@ -181,7 +167,7 @@ class Encoder(nn.Module):
         return self.norm(x)
 
 class DecoderBlock(nn.Module):
-    def __init__(self, features: int, self_attention: MultiHeadAttention, cross_attention_block: MultiHeadAttention, feed_forward: FeedForwardBlock, dropout: float):
+    def __init__(self, features: int, self_attention: MultiHeadAttentionBlock, cross_attention_block: MultiHeadAttentionBlock, feed_forward: FeedForwardBlock, dropout: float):
         super(DecoderBlock, self).__init__()
         self.self_attention = self_attention
         self.cross_attention_block = cross_attention_block
@@ -216,7 +202,7 @@ class ProjectionLayer(nn.Module):
     def forward(self, x):
         # (batch_size, seq_len, d_model) ->> (batch_size, seq_len, vocab_size)
         # Uses log softmax for numerical stability
-        return torch.log_softmax(self.projection(x), dim=-1)
+        return self.projection(x)
     
 class Transformer(nn.Module):
     def __init__(self, encoder: Encoder, decoder: Decoder, src_embedding: InputEmbedding, trg_embedding: InputEmbedding,
@@ -256,7 +242,7 @@ def build_transformer(src_vocab_size: int, tgt_vocab_size: int, src_seq_len: int
     # Create the encoder blocks
     encoder_blocks = []
     for _ in range(N):
-        encoder_self_attention_block = MultiHeadAttention(d_model, h, dropout)
+        encoder_self_attention_block = MultiHeadAttentionBlock(d_model, h, dropout)
         feed_forward_block = FeedForwardBlock(d_model, d_ff, dropout)
         encoder_block = EncoderBlock(d_model, encoder_self_attention_block, feed_forward_block, dropout)
         encoder_blocks.append(encoder_block)
@@ -264,8 +250,8 @@ def build_transformer(src_vocab_size: int, tgt_vocab_size: int, src_seq_len: int
     # Create the decoder blocks
     decoder_blocks = []
     for _ in range(N):
-        decoder_self_attention_block = MultiHeadAttention(d_model, h, dropout)
-        decoder_cross_attention_block = MultiHeadAttention(d_model, h, dropout)
+        decoder_self_attention_block = MultiHeadAttentionBlock(d_model, h, dropout)
+        decoder_cross_attention_block = MultiHeadAttentionBlock(d_model, h, dropout)
         feed_forward_block = FeedForwardBlock(d_model, d_ff, dropout)
         decoder_block = DecoderBlock(d_model, decoder_self_attention_block, decoder_cross_attention_block, feed_forward_block, dropout)
         decoder_blocks.append(decoder_block)
